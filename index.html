@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pixel Art Spritesheet Resizer (HD 1000px)</title>
+    <title>Pixel Art Spritesheet Resizer (HD Aspect Ratio)</title>
     <!-- Memuat Tailwind CSS untuk styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -18,9 +18,12 @@
          * bukan membuatnya buram (anti-aliased).
          */
         .pixel-image {
-            /* Ukuran tampilan preview (visual di web), bukan ukuran file asli */
-            width: 240px; /* Default preview size */
-            height: 240px;
+            /* Ukuran tampilan preview diatur lewat JS supaya responsif */
+            /* Default height untuk preview, width auto biar aspect ratio terjaga */
+            height: 240px; 
+            width: auto; 
+            max-width: 100%;
+            object-fit: contain;
             
             /* Default rendering (akan di-override JS jika smoothing aktif) */
             image-rendering: pixelated;
@@ -61,7 +64,7 @@
         <!-- Header -->
         <div class="text-center mb-8 border-b pb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-slate-800 mb-2 tracking-tight">Pixel Art Resizer HD</h1>
-            <p class="text-slate-500">Potong spritesheet dan perbesar hingga resolusi tinggi (1000px++)</p>
+            <p class="text-slate-500">Potong spritesheet & resize proporsional (Keep Aspect Ratio)</p>
         </div>
 
         <!-- Kontrol Input -->
@@ -95,7 +98,7 @@
                 </div>
                 <!-- Input Ukuran Output -->
                 <div>
-                    <label for="sizeInput" class="block text-sm font-bold text-slate-700 mb-1">Ukuran Output (px)</label>
+                    <label for="sizeInput" class="block text-sm font-bold text-slate-700 mb-1">Target Tinggi (Height)</label>
                     <div class="relative">
                         <input 
                             type="number" 
@@ -109,7 +112,7 @@
                             <span class="text-gray-500 sm:text-sm">px</span>
                         </div>
                     </div>
-                    <p class="text-xs text-slate-400 mt-1">Resolusi hasil download</p>
+                    <p class="text-xs text-slate-400 mt-1">Lebar akan menyesuaikan otomatis</p>
                 </div>
                 <!-- Checkbox Smoothing -->
                 <div class="flex flex-col justify-center h-full pt-4">
@@ -121,8 +124,8 @@
                         <span class="text-sm font-bold text-slate-700 group-hover:text-blue-600 transition">Image Smoothing</span>
                     </label>
                     <p class="text-xs text-slate-400 mt-2">
-                        Centang untuk menghaluskan (blur).<br>
-                        Hapus centang untuk tajam (pixelated).
+                        Centang untuk blur/halus.<br>
+                        Uncheck untuk tajam (pixel).
                     </p>
                 </div>
             </div>
@@ -226,23 +229,27 @@
                 // Ambil nilai input
                 const numCols = Math.max(1, parseInt(colsInput.value) || 1);
                 const numRows = Math.max(1, parseInt(rowsInput.value) || 1);
-                let outputSize = parseInt(sizeInput.value) || 1000;
+                
+                // INI BASE HEIGHT (Tinggi)
+                let targetHeight = parseInt(sizeInput.value) || 1000;
+                
                 const isSmoothingEnabled = smoothingInput.checked;
 
-                // Update CSS untuk preview agar tidak terlalu besar di layar
-                const displaySize = Math.min(outputSize, 320); 
+                // Update CSS untuk preview
+                // Kita set tinggi maksimum preview agar rapi, lebar auto
+                const displayHeight = Math.min(targetHeight, 280); 
                 
                 // Hapus style lama jika ada
                 const oldStyle = document.getElementById('dynamic-pixel-style');
                 if (oldStyle) oldStyle.remove();
                 
-                // Inject CSS baru
+                // Inject CSS baru: Force height, auto width
                 const styleEl = document.createElement('style');
                 styleEl.id = 'dynamic-pixel-style';
                 styleEl.innerHTML = `
                     .pixel-image {
-                        width: ${displaySize}px;
-                        height: ${displaySize}px;
+                        height: ${displayHeight}px;
+                        width: auto; /* PENTING: Agar tidak gepeng */
                     }
                 `;
                 document.head.appendChild(styleEl);
@@ -250,7 +257,7 @@
                 // Proses setiap file
                 try {
                     const processingPromises = loadedFilesData.map(fileInfo => 
-                        processAndDisplayImage(fileInfo, numCols, numRows, outputSize, isSmoothingEnabled)
+                        processAndDisplayImage(fileInfo, numCols, numRows, targetHeight, isSmoothingEnabled)
                     );
 
                     await Promise.all(processingPromises);
@@ -272,10 +279,9 @@
             /**
              * Proses pemotongan dan resizing gambar
              */
-            function processAndDisplayImage(fileInfo, numCols, numRows, outputSize, isSmoothingEnabled) {
+            function processAndDisplayImage(fileInfo, numCols, numRows, targetHeight, isSmoothingEnabled) {
                 return new Promise((resolve, reject) => {
                     const baseFileName = fileInfo.name.substring(0, fileInfo.name.lastIndexOf('.')) || fileInfo.name;
-                    // Selalu gunakan PNG untuk output agar transparan
                     const fileExtension = '.png'; 
 
                     const originalImg = new Image();
@@ -283,15 +289,25 @@
                     originalImg.onload = () => {
                         const cellWidth = originalImg.width / numCols;
                         const cellHeight = originalImg.height / numRows;
+                        
+                        // --- LOGIKA ASPECT RATIO ---
+                        // Hitung rasio aspek dari 1 sel gambar asli
+                        const aspectRatio = cellWidth / cellHeight;
+
+                        // Tentukan dimensi final
+                        // Tinggi = sesuai input user (Base 1000)
+                        // Lebar = Tinggi * Rasio
+                        const finalHeight = targetHeight;
+                        const finalWidth = Math.round(targetHeight * aspectRatio);
 
                         // Loop Grid
                         for (let r = 0; r < numRows; r++) {
                             for (let c = 0; c < numCols; c++) {
                                 
-                                // Buat canvas
+                                // Buat canvas dengan dimensi proporsional
                                 const canvas = document.createElement('canvas');
-                                canvas.width = outputSize;
-                                canvas.height = outputSize;
+                                canvas.width = finalWidth;
+                                canvas.height = finalHeight;
                                 const ctx = canvas.getContext('2d');
 
                                 // SETTING KUNCI: Smoothing berdasarkan checkbox
@@ -310,7 +326,7 @@
                                     c * cellWidth, r * cellHeight, // Source X, Y
                                     cellWidth, cellHeight,         // Source W, H
                                     0, 0,                          // Dest X, Y
-                                    outputSize, outputSize         // Dest W, H (Upscale)
+                                    finalWidth, finalHeight        // Dest W, H (Proporsional)
                                 );
 
                                 const upscaledDataUrl = canvas.toDataURL('image/png');
@@ -319,10 +335,9 @@
                                 const displayImg = document.createElement('img');
                                 displayImg.src = upscaledDataUrl;
                                 const finalName = `${baseFileName}_${r+1}-${c+1}${fileExtension}`;
-                                displayImg.title = finalName;
+                                displayImg.title = `${finalName} (${finalWidth}x${finalHeight})`;
                                 displayImg.className = 'pixel-image rounded-lg hover:scale-105 transition-transform duration-200';
                                 
-                                // Tambahkan class 'smooth' untuk preview CSS jika diaktifkan
                                 if (isSmoothingEnabled) {
                                     displayImg.classList.add('smooth');
                                 }
@@ -343,7 +358,7 @@
 
             // --- Event Listeners ---
 
-            // Input Events (Debounced sedikit untuk kinerja)
+            // Input Events
             let timeout;
             function debouncedUpdate() {
                 clearTimeout(timeout);
@@ -353,7 +368,7 @@
             colsInput.addEventListener('input', debouncedUpdate);
             rowsInput.addEventListener('input', debouncedUpdate);
             sizeInput.addEventListener('input', debouncedUpdate);
-            smoothingInput.addEventListener('change', debouncedUpdate); // Checkbox change trigger
+            smoothingInput.addEventListener('change', debouncedUpdate);
 
             // Upload Event
             imageUploader.addEventListener('change', (event) => {
@@ -364,7 +379,7 @@
                 loadedFilesData = [];
                 imageContainer.innerHTML = '';
                 imageContainer.appendChild(placeholderText);
-                placeholderText.style.display = 'none'; // Hide placeholder
+                placeholderText.style.display = 'none';
                 
                 statusArea.classList.remove('hidden');
                 statusArea.textContent = "Membaca file...";
@@ -410,7 +425,7 @@
                     const url = URL.createObjectURL(content);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `pixel_art_hd_${sizeInput.value}px.zip`;
+                    a.download = `pixel_art_hd_h${sizeInput.value}px.zip`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
