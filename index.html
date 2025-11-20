@@ -3,56 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pixel Art Spritesheet Resizer (HD Aspect Ratio)</title>
-    <!-- Memuat Tailwind CSS untuk styling -->
+    <title>Pixel Art Spritesheet Resizer (HD Pro)</title>
+    <!-- Memuat Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Memuat JSZip - library untuk membuat file ZIP -->
+    <!-- Memuat JSZip -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
-    <!-- CSS Kustom untuk rendering gambar -->
     <style>
-        /* * Ini adalah bagian terpenting!
-         * 'image-rendering: pixelated;' memaksa browser untuk
-         * menjaga tepian piksel tetap tajam saat diperbesar,
-         * bukan membuatnya buram (anti-aliased).
-         */
+        /* Base Pixel Rendering */
         .pixel-image {
-            /* Ukuran tampilan preview diatur lewat JS supaya responsif */
-            /* Default height untuk preview, width auto biar aspect ratio terjaga */
+            /* Preview logic: max height restricted, width auto */
             height: 240px; 
             width: auto; 
             max-width: 100%;
             object-fit: contain;
+            image-rendering: pixelated; /* Default tajam */
             
-            /* Default rendering (akan di-override JS jika smoothing aktif) */
-            image-rendering: pixelated;
-            
-            /* Styling border */
             border: 1px solid #e2e8f0;
-            background-color: #ffffff;
+            background-color: #ffffff; /* Default bg preview putih di UI */
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
         
-        /* Class khusus jika smoothing aktif (blur) */
+        /* Override jika smoothing aktif */
         .pixel-image.smooth {
             image-rendering: auto;
         }
 
-        /* Animasi loading sederhana */
-        .loading-spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3b82f6;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            display: inline-block;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        /* Override background preview jika user pilih transparan di UI visual */
+        /* Kita pakai checkerboard CSS hanya di container comparison agar jelas */
+        .checkerboard-bg {
+            background-image: 
+                linear-gradient(45deg, #f0f0f0 25%, transparent 25%), 
+                linear-gradient(-45deg, #f0f0f0 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #f0f0f0 75%), 
+                linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
         }
     </style>
 </head>
@@ -64,70 +51,73 @@
         <!-- Header -->
         <div class="text-center mb-8 border-b pb-6">
             <h1 class="text-3xl md:text-4xl font-extrabold text-slate-800 mb-2 tracking-tight">Pixel Art Resizer HD</h1>
-            <p class="text-slate-500">Potong spritesheet & resize proporsional (Keep Aspect Ratio)</p>
+            <p class="text-slate-500">Potong spritesheet, resize, dan atur format sesuka hati.</p>
         </div>
 
-        <!-- Kontrol Input -->
+        <!-- Kontrol Input (Grid Utama) -->
         <div class="bg-slate-50 p-6 rounded-xl mb-8 border border-slate-200">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <!-- Input Kolom -->
+            
+            <!-- Baris 1: Dimensi Input -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 border-b border-slate-200 pb-6">
                 <div>
-                    <label for="colsInput" class="block text-sm font-bold text-slate-700 mb-1">Jumlah Kolom</label>
-                    <input 
-                        type="number" 
-                        id="colsInput" 
-                        value="1" 
-                        min="1"
-                        class="w-full px-4 py-2 rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 transition"
-                        placeholder="Contoh: 4"
-                    >
-                    <p class="text-xs text-slate-400 mt-1">Jumlah gambar ke samping</p>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">Jumlah Kolom</label>
+                    <input type="number" id="colsInput" value="1" min="1" class="w-full px-4 py-2 rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 transition" placeholder="Contoh: 4">
                 </div>
-                <!-- Input Baris -->
                 <div>
-                    <label for="rowsInput" class="block text-sm font-bold text-slate-700 mb-1">Jumlah Baris</label>
-                    <input 
-                        type="number" 
-                        id="rowsInput" 
-                        value="1" 
-                        min="1"
-                        class="w-full px-4 py-2 rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 transition"
-                        placeholder="Contoh: 1"
-                    >
-                    <p class="text-xs text-slate-400 mt-1">Jumlah gambar ke bawah</p>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">Jumlah Baris</label>
+                    <input type="number" id="rowsInput" value="1" min="1" class="w-full px-4 py-2 rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 transition" placeholder="Contoh: 1">
                 </div>
-                <!-- Input Ukuran Output -->
                 <div>
-                    <label for="sizeInput" class="block text-sm font-bold text-slate-700 mb-1">Target Tinggi (Height)</label>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">Target Ukuran (px)</label>
                     <div class="relative">
-                        <input 
-                            type="number" 
-                            id="sizeInput" 
-                            value="1000" 
-                            min="32"
-                            step="10"
-                            class="w-full px-4 py-2 rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 font-mono font-semibold text-blue-700 transition"
-                        >
+                        <input type="number" id="sizeInput" value="1000" min="32" step="10" class="w-full px-4 py-2 rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 font-mono font-semibold text-blue-700 transition">
                         <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                             <span class="text-gray-500 sm:text-sm">px</span>
                         </div>
                     </div>
-                    <p class="text-xs text-slate-400 mt-1">Lebar akan menyesuaikan otomatis</p>
+                    <p class="text-xs text-slate-400 mt-1">Tinggi (atau Lebar Box jika kotak)</p>
                 </div>
-                <!-- Checkbox Smoothing -->
-                <div class="flex flex-col justify-center h-full pt-4">
-                     <label class="flex items-center space-x-3 cursor-pointer group">
-                        <div class="relative">
-                            <input type="checkbox" id="smoothingInput" class="sr-only peer">
-                            <div class="w-10 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                        </div>
-                        <span class="text-sm font-bold text-slate-700 group-hover:text-blue-600 transition">Image Smoothing</span>
-                    </label>
-                    <p class="text-xs text-slate-400 mt-2">
-                        Centang untuk blur/halus.<br>
-                        Uncheck untuk tajam (pixel).
-                    </p>
-                </div>
+            </div>
+
+            <!-- Baris 2: Opsi Tambahan (Checkboxes) -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                
+                <!-- Opsi 1: Smoothing -->
+                <label class="flex items-start space-x-3 cursor-pointer group p-3 rounded-lg hover:bg-slate-100 transition">
+                    <div class="relative mt-1">
+                        <input type="checkbox" id="smoothingInput" class="sr-only peer">
+                        <div class="w-10 h-6 bg-gray-300 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </div>
+                    <div>
+                        <span class="block text-sm font-bold text-slate-700 group-hover:text-blue-600">Image Smoothing</span>
+                        <span class="block text-xs text-slate-500">Blur/Halus. Matikan untuk Pixel Art tajam.</span>
+                    </div>
+                </label>
+
+                <!-- Opsi 2: Square Canvas -->
+                <label class="flex items-start space-x-3 cursor-pointer group p-3 rounded-lg hover:bg-slate-100 transition">
+                    <div class="relative mt-1">
+                        <input type="checkbox" id="squareInput" class="sr-only peer">
+                        <div class="w-10 h-6 bg-gray-300 rounded-full peer peer-focus:ring-2 peer-focus:ring-purple-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                    </div>
+                    <div>
+                        <span class="block text-sm font-bold text-slate-700 group-hover:text-purple-600">Canvas Kotak (1:1)</span>
+                        <span class="block text-xs text-slate-500">Paksa hasil jadi kotak (Centered).</span>
+                    </div>
+                </label>
+
+                <!-- Opsi 3: White Background -->
+                <label class="flex items-start space-x-3 cursor-pointer group p-3 rounded-lg hover:bg-slate-100 transition">
+                    <div class="relative mt-1">
+                        <input type="checkbox" id="bgWhiteInput" class="sr-only peer">
+                        <div class="w-10 h-6 bg-gray-300 rounded-full peer peer-focus:ring-2 peer-focus:ring-orange-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                    </div>
+                    <div>
+                        <span class="block text-sm font-bold text-slate-700 group-hover:text-orange-600">Background Putih</span>
+                        <span class="block text-xs text-slate-500">Isi latar transparan dengan warna putih.</span>
+                    </div>
+                </label>
+
             </div>
         </div>
 
@@ -149,7 +139,7 @@
 
         <!-- Info Status -->
         <div id="statusArea" class="hidden text-center mb-4 p-3 bg-yellow-50 text-yellow-700 rounded-lg text-sm">
-            Memproses gambar resolusi tinggi...
+            Memproses...
         </div>
 
         <!-- Tombol Download -->
@@ -165,16 +155,54 @@
             </button>
         </div>
 
-        <!-- Area Tampilan Gambar -->
-        <div>
+        <!-- Area Tampilan Gambar Grid -->
+        <div class="mb-12">
             <div class="flex justify-between items-end mb-2">
-                <h3 class="text-lg font-bold text-slate-700">Preview Hasil</h3>
-                <span class="text-xs text-slate-400">*Preview diperkecil agar muat di layar</span>
+                <h3 class="text-lg font-bold text-slate-700">Preview Semua Hasil</h3>
+                <span class="text-xs text-slate-400">*Preview diperkecil</span>
             </div>
             <div id="imageContainer" class="w-full flex justify-center flex-wrap gap-4 p-6 border border-slate-200 bg-slate-50 rounded-xl min-h-[200px]">
                 <div id="placeholderText" class="flex flex-col items-center justify-center text-slate-400 h-32 w-full">
                     <span class="text-4xl mb-2">🖼️</span>
                     <p>Hasil potongan akan muncul di sini</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Area Comparison -->
+        <div id="comparisonSection" class="hidden border-t-2 border-dashed border-slate-300 pt-8 mb-8">
+             <div class="text-center mb-6">
+                <h2 class="text-2xl font-bold text-slate-800">Perbandingan (Before vs After)</h2>
+                <p class="text-sm text-slate-500">Sampel: Row 1, Col 1</p>
+            </div>
+            
+            <div class="flex flex-col md:flex-row justify-center items-center gap-8 md:gap-12">
+                <!-- Before -->
+                <div class="flex flex-col items-center">
+                    <span class="text-sm font-bold text-slate-500 mb-2 uppercase tracking-wider">Original</span>
+                    <div class="bg-white p-4 rounded-xl shadow-md border border-slate-200 flex items-center justify-center checkerboard-bg" style="min-width: 200px; min-height: 200px;">
+                        <img id="imgBefore" class="max-w-[200px] max-h-[200px] border border-slate-300 shadow-sm" style="image-rendering: pixelated;">
+                    </div>
+                    <div class="mt-3 text-xs font-mono text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+                        Size: <span id="sizeBefore" class="font-bold text-slate-700">--</span> px
+                    </div>
+                </div>
+
+                <div class="text-slate-300 transform rotate-90 md:rotate-0">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
+                    </svg>
+                </div>
+
+                <!-- After -->
+                <div class="flex flex-col items-center">
+                    <span class="text-sm font-bold text-green-600 mb-2 uppercase tracking-wider">After (Final)</span>
+                    <div class="bg-white p-4 rounded-xl shadow-lg border-2 border-green-100 flex items-center justify-center checkerboard-bg" style="min-width: 200px; min-height: 200px;">
+                        <img id="imgAfter" class="max-w-[200px] max-h-[200px] border border-slate-300 shadow-sm object-contain">
+                    </div>
+                    <div class="mt-3 text-xs font-mono text-green-700 bg-green-50 px-3 py-1 rounded-full border border-green-200">
+                        Size: <span id="sizeAfter" class="font-bold">--</span> px
+                    </div>
                 </div>
             </div>
         </div>
@@ -186,11 +214,10 @@
         <p>Created by Allync</p>
     </footer>
 
-    <!-- JavaScript Internal -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             
-            // Elemen DOM
+            // Elements
             const imageUploader = document.getElementById('imageUploader');
             const imageContainer = document.getElementById('imageContainer');
             const downloadButton = document.getElementById('downloadButton');
@@ -201,237 +228,269 @@
             const colsInput = document.getElementById('colsInput');
             const rowsInput = document.getElementById('rowsInput');
             const sizeInput = document.getElementById('sizeInput');
+            
+            // Checkboxes
             const smoothingInput = document.getElementById('smoothingInput');
+            const squareInput = document.getElementById('squareInput');
+            const bgWhiteInput = document.getElementById('bgWhiteInput');
+
+            // Comparison Elements
+            const comparisonSection = document.getElementById('comparisonSection');
+            const imgBefore = document.getElementById('imgBefore');
+            const imgAfter = document.getElementById('imgAfter');
+            const sizeBefore = document.getElementById('sizeBefore');
+            const sizeAfter = document.getElementById('sizeAfter');
 
             // State
             let filesToZip = [];
             let loadedFilesData = []; 
             let isProcessing = false;
 
-            /**
-             * Fungsi Update Preview
-             * Dipanggil saat file diupload atau input berubah
-             */
+            // --- CORE FUNCTION ---
             async function updatePreview() {
                 if (loadedFilesData.length === 0) return;
-                
-                // Mencegah spam proses jika user mengetik cepat
                 if (isProcessing) return;
                 isProcessing = true;
                 
-                // UI Updates
+                // Reset UI
                 imageContainer.innerHTML = '';
                 filesToZip = [];
                 downloadButton.disabled = true;
                 statusArea.classList.remove('hidden');
-                statusArea.textContent = "Sedang merender ulang...";
-                
-                // Ambil nilai input
+                statusArea.textContent = "Sedang memproses...";
+                comparisonSection.classList.add('hidden');
+
+                // Get Inputs
                 const numCols = Math.max(1, parseInt(colsInput.value) || 1);
                 const numRows = Math.max(1, parseInt(rowsInput.value) || 1);
+                const targetSize = parseInt(sizeInput.value) || 1000;
                 
-                // INI BASE HEIGHT (Tinggi)
-                let targetHeight = parseInt(sizeInput.value) || 1000;
-                
-                const isSmoothingEnabled = smoothingInput.checked;
+                const opts = {
+                    smoothing: smoothingInput.checked,
+                    forceSquare: squareInput.checked,
+                    bgWhite: bgWhiteInput.checked
+                };
 
-                // Update CSS untuk preview
-                // Kita set tinggi maksimum preview agar rapi, lebar auto
-                const displayHeight = Math.min(targetHeight, 280); 
-                
-                // Hapus style lama jika ada
+                // Update CSS Dynamic for Preview Sizing
+                // If Square, height = 240px, width = 240px
+                // If Not Square, height = 240px, width = auto
                 const oldStyle = document.getElementById('dynamic-pixel-style');
                 if (oldStyle) oldStyle.remove();
-                
-                // Inject CSS baru: Force height, auto width
                 const styleEl = document.createElement('style');
                 styleEl.id = 'dynamic-pixel-style';
-                styleEl.innerHTML = `
-                    .pixel-image {
-                        height: ${displayHeight}px;
-                        width: auto; /* PENTING: Agar tidak gepeng */
-                    }
-                `;
+                
+                if (opts.forceSquare) {
+                    styleEl.innerHTML = `.pixel-image { height: 240px; width: 240px; }`;
+                } else {
+                    styleEl.innerHTML = `.pixel-image { height: 240px; width: auto; }`;
+                }
                 document.head.appendChild(styleEl);
 
-                // Proses setiap file
-                try {
-                    const processingPromises = loadedFilesData.map(fileInfo => 
-                        processAndDisplayImage(fileInfo, numCols, numRows, targetHeight, isSmoothingEnabled)
-                    );
+                // Show Comparison (if single file)
+                if (loadedFilesData.length === 1) {
+                    renderComparison(loadedFilesData[0], numCols, numRows, targetSize, opts);
+                }
 
-                    await Promise.all(processingPromises);
+                // Render All
+                try {
+                    const promises = loadedFilesData.map(file => 
+                        processImage(file, numCols, numRows, targetSize, opts)
+                    );
+                    await Promise.all(promises);
 
                     if (filesToZip.length > 0) {
                         downloadButton.disabled = false;
                         btnText.textContent = `Download ${filesToZip.length} Gambar (ZIP)`;
                     }
                     statusArea.classList.add('hidden');
-                } catch (error) {
-                    console.error("Error processing:", error);
-                    statusArea.textContent = "Terjadi kesalahan saat memproses gambar.";
-                    statusArea.className = "text-center mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm";
+                } catch (e) {
+                    console.error(e);
+                    statusArea.textContent = "Error.";
                 } finally {
                     isProcessing = false;
                 }
             }
 
-            /**
-             * Proses pemotongan dan resizing gambar
-             */
-            function processAndDisplayImage(fileInfo, numCols, numRows, targetHeight, isSmoothingEnabled) {
-                return new Promise((resolve, reject) => {
-                    const baseFileName = fileInfo.name.substring(0, fileInfo.name.lastIndexOf('.')) || fileInfo.name;
-                    const fileExtension = '.png'; 
-
-                    const originalImg = new Image();
+            function renderComparison(fileInfo, cols, rows, targetSize, opts) {
+                const img = new Image();
+                img.onload = () => {
+                    const cellW = img.width / cols;
+                    const cellH = img.height / rows;
                     
-                    originalImg.onload = () => {
-                        const cellWidth = originalImg.width / numCols;
-                        const cellHeight = originalImg.height / numRows;
-                        
-                        // --- LOGIKA ASPECT RATIO ---
-                        // Hitung rasio aspek dari 1 sel gambar asli
-                        const aspectRatio = cellWidth / cellHeight;
+                    // Draw Before
+                    const c1 = document.createElement('canvas');
+                    c1.width = cellW; c1.height = cellH;
+                    c1.getContext('2d').drawImage(img, 0, 0, cellW, cellH, 0, 0, cellW, cellH);
+                    imgBefore.src = c1.toDataURL();
+                    sizeBefore.textContent = `${Math.round(cellW)} x ${Math.round(cellH)}`;
 
-                        // Tentukan dimensi final
-                        // Tinggi = sesuai input user (Base 1000)
-                        // Lebar = Tinggi * Rasio
-                        const finalHeight = targetHeight;
-                        const finalWidth = Math.round(targetHeight * aspectRatio);
+                    // Draw After (using same logic as main processor)
+                    const c2 = createCanvasResult(img, 0, 0, cellW, cellH, targetSize, opts);
+                    imgAfter.src = c2.toDataURL('image/png');
+                    sizeAfter.textContent = `${c2.width} x ${c2.height}`;
+                    
+                    // CSS Tweak for view
+                    imgAfter.style.imageRendering = opts.smoothing ? 'auto' : 'pixelated';
 
-                        // Loop Grid
-                        for (let r = 0; r < numRows; r++) {
-                            for (let c = 0; c < numCols; c++) {
-                                
-                                // Buat canvas dengan dimensi proporsional
-                                const canvas = document.createElement('canvas');
-                                canvas.width = finalWidth;
-                                canvas.height = finalHeight;
-                                const ctx = canvas.getContext('2d');
+                    comparisonSection.classList.remove('hidden');
+                };
+                img.src = fileInfo.dataUrl;
+            }
 
-                                // SETTING KUNCI: Smoothing berdasarkan checkbox
-                                ctx.imageSmoothingEnabled = isSmoothingEnabled;
-                                ctx.webkitImageSmoothingEnabled = isSmoothingEnabled;
-                                ctx.mozImageSmoothingEnabled = isSmoothingEnabled;
-                                ctx.msImageSmoothingEnabled = isSmoothingEnabled;
-                                
-                                if (isSmoothingEnabled) {
-                                    ctx.imageSmoothingQuality = 'high';
-                                }
+            function processImage(fileInfo, cols, rows, targetSize, opts) {
+                return new Promise((resolve, reject) => {
+                    const baseName = fileInfo.name.substring(0, fileInfo.name.lastIndexOf('.')) || fileInfo.name;
+                    const img = new Image();
+                    img.onload = () => {
+                        const cellW = img.width / cols;
+                        const cellH = img.height / rows;
 
-                                // Gambar ke canvas (Resize terjadi di sini)
-                                ctx.drawImage(
-                                    originalImg,
-                                    c * cellWidth, r * cellHeight, // Source X, Y
-                                    cellWidth, cellHeight,         // Source W, H
-                                    0, 0,                          // Dest X, Y
-                                    finalWidth, finalHeight        // Dest W, H (Proporsional)
+                        for(let r=0; r<rows; r++) {
+                            for(let c=0; c<cols; c++) {
+                                const canvas = createCanvasResult(
+                                    img, 
+                                    c * cellW, r * cellH, 
+                                    cellW, cellH, 
+                                    targetSize, 
+                                    opts
                                 );
-
-                                const upscaledDataUrl = canvas.toDataURL('image/png');
-
-                                // Buat elemen IMG untuk preview
-                                const displayImg = document.createElement('img');
-                                displayImg.src = upscaledDataUrl;
-                                const finalName = `${baseFileName}_${r+1}-${c+1}${fileExtension}`;
-                                displayImg.title = `${finalName} (${finalWidth}x${finalHeight})`;
-                                displayImg.className = 'pixel-image rounded-lg hover:scale-105 transition-transform duration-200';
                                 
-                                if (isSmoothingEnabled) {
-                                    displayImg.classList.add('smooth');
-                                }
-
+                                const dataUrl = canvas.toDataURL('image/png');
+                                
+                                // Create Display Element
+                                const displayImg = document.createElement('img');
+                                displayImg.src = dataUrl;
+                                displayImg.className = 'pixel-image rounded-md hover:scale-105 transition-transform duration-200';
+                                if(opts.smoothing) displayImg.classList.add('smooth');
+                                
                                 imageContainer.appendChild(displayImg);
-
-                                // Simpan ke array ZIP
-                                filesToZip.push({ name: finalName, dataUrl: upscaledDataUrl });
+                                
+                                const fname = `${baseName}_${r+1}-${c+1}.png`;
+                                filesToZip.push({ name: fname, dataUrl: dataUrl });
                             }
                         }
                         resolve();
                     };
-                    
-                    originalImg.onerror = reject;
-                    originalImg.src = fileInfo.dataUrl;
+                    img.onerror = reject;
+                    img.src = fileInfo.dataUrl;
                 });
             }
 
-            // --- Event Listeners ---
+            // Helper: The core drawing logic
+            function createCanvasResult(img, sx, sy, sw, sh, targetSize, opts) {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const ratio = sw / sh;
 
-            // Input Events
-            let timeout;
-            function debouncedUpdate() {
-                clearTimeout(timeout);
-                timeout = setTimeout(updatePreview, 300);
+                let fw, fh; // final width, final height of IMAGE
+                let cw, ch; // canvas width, canvas height
+
+                if (opts.forceSquare) {
+                    // Canvas is Square
+                    cw = targetSize;
+                    ch = targetSize;
+                    
+                    // Fit image inside square (contain)
+                    if (ratio > 1) { // Wider
+                        fw = targetSize;
+                        fh = targetSize / ratio;
+                    } else { // Taller
+                        fh = targetSize;
+                        fw = targetSize * ratio;
+                    }
+                } else {
+                    // Canvas fits image (Height based)
+                    // Logic from previous version: sizeInput = Height
+                    fh = targetSize;
+                    fw = targetSize * ratio;
+                    cw = fw;
+                    ch = fh;
+                }
+
+                // Rounding to avoid subpixel blurring
+                cw = Math.round(cw); ch = Math.round(ch);
+                fw = Math.round(fw); fh = Math.round(fh);
+
+                canvas.width = cw;
+                canvas.height = ch;
+
+                // 1. Background
+                if (opts.bgWhite) {
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, cw, ch);
+                }
+
+                // 2. Smoothing
+                ctx.imageSmoothingEnabled = opts.smoothing;
+                if(opts.smoothing) ctx.imageSmoothingQuality = 'high';
+                else {
+                     // Force nearest neighbor
+                    ctx.webkitImageSmoothingEnabled = false;
+                    ctx.mozImageSmoothingEnabled = false;
+                    ctx.msImageSmoothingEnabled = false;
+                }
+
+                // 3. Draw Centered
+                const dx = (cw - fw) / 2;
+                const dy = (ch - fh) / 2;
+                
+                ctx.drawImage(img, sx, sy, sw, sh, dx, dy, fw, fh);
+                
+                return canvas;
             }
 
-            colsInput.addEventListener('input', debouncedUpdate);
-            rowsInput.addEventListener('input', debouncedUpdate);
-            sizeInput.addEventListener('input', debouncedUpdate);
-            smoothingInput.addEventListener('change', debouncedUpdate);
+            // Listeners
+            let debounce;
+            const triggerUpdate = () => {
+                clearTimeout(debounce);
+                debounce = setTimeout(updatePreview, 300);
+            };
 
-            // Upload Event
-            imageUploader.addEventListener('change', (event) => {
-                const files = event.target.files;
-                if (files.length === 0) return;
-
-                // Reset
-                loadedFilesData = [];
-                imageContainer.innerHTML = '';
-                imageContainer.appendChild(placeholderText);
-                placeholderText.style.display = 'none';
+            [colsInput, rowsInput, sizeInput, smoothingInput, squareInput, bgWhiteInput]
+                .forEach(el => el.addEventListener('input', triggerUpdate));
                 
+            // Initial Load for Checkboxes (change event)
+            [smoothingInput, squareInput, bgWhiteInput]
+                 .forEach(el => el.addEventListener('change', triggerUpdate));
+
+            imageUploader.addEventListener('change', (e) => {
+                if (e.target.files.length === 0) return;
+                
+                // Reset & Read
+                loadedFilesData = [];
                 statusArea.classList.remove('hidden');
                 statusArea.textContent = "Membaca file...";
+                
+                const promises = Array.from(e.target.files).map(f => new Promise((resolve) => {
+                    const r = new FileReader();
+                    r.onload = (ev) => resolve({ name: f.name, dataUrl: ev.target.result });
+                    r.readAsDataURL(f);
+                }));
 
-                const filePromises = Array.from(files).map(file => {
-                    return new Promise((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onload = (e) => resolve({
-                            name: file.name,
-                            type: file.type,
-                            dataUrl: e.target.result
-                        });
-                        reader.onerror = reject;
-                        reader.readAsDataURL(file);
-                    });
+                Promise.all(promises).then(data => {
+                    loadedFilesData = data;
+                    updatePreview();
                 });
-
-                Promise.all(filePromises)
-                    .then(data => {
-                        loadedFilesData = data;
-                        updatePreview();
-                    })
-                    .catch(err => {
-                        console.error(err);
-                        statusArea.textContent = "Gagal membaca file.";
-                    });
             });
 
-            // Download Event
             downloadButton.addEventListener('click', () => {
                 if (filesToZip.length === 0) return;
-
-                const originalText = btnText.textContent;
-                btnText.textContent = "Mengompres ZIP...";
+                const txt = btnText.textContent;
+                btnText.textContent = "Zipping...";
                 downloadButton.disabled = true;
-
+                
                 const zip = new JSZip();
-                filesToZip.forEach(f => {
-                    zip.file(f.name, f.dataUrl.split(',')[1], { base64: true });
-                });
-
-                zip.generateAsync({ type: "blob" }).then(content => {
-                    const url = URL.createObjectURL(content);
+                filesToZip.forEach(f => zip.file(f.name, f.dataUrl.split(',')[1], {base64:true}));
+                
+                zip.generateAsync({type:"blob"}).then(blob => {
+                    const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `pixel_art_hd_h${sizeInput.value}px.zip`;
+                    a.download = `pixel_pro_${sizeInput.value}px.zip`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-
-                    btnText.textContent = originalText;
+                    btnText.textContent = txt;
                     downloadButton.disabled = false;
                 });
             });
